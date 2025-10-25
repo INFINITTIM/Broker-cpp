@@ -10,24 +10,28 @@
 
 class BaseModule : public EventHandlerInterface {
 protected:
-    size_t _id;
-    std::string _name;
+    size_t id;
+    std::string name;
+    // идентификатор модуля и название модуля
 
 public:
-    BaseModule(size_t id, const std::string& name) : _id(id), _name(name) {}
+    BaseModule(size_t _id, std::string _name) : id(_id), name(_name) {}
+    // конструктор по умолчанию
+
     virtual ~BaseModule() = default;
+    // деструктор
 
-    // Абстрактный метод - КАЖДЫЙ модуль должен определить свои подписки
     virtual void init_subscribes() = 0;
+    // реализация подписок изначальных (можно изначально ни на кого не быть подписанным)
 
-    // Упрощенная отправка (просто вызов менеджера)
     bool send(const EventPtr& event) {
-        std::cout << "[" << _name << "] 📤 Отправляю событие: " << event->to_string() << std::endl;
-        // В реальности здесь был бы вызов менеджера
+        std::cout << "[" << name << "] Отправляю событие: " 
+        << event->to_string() << std::endl;
         return true;
     }
+    // отправляет сообщение (менеджеру когда он будет реализован)
 
-    // Геттеры
-    size_t get_id() const { return _id; }
-    const std::string& get_name() const { return _name; }
+    size_t get_id() const { return id; }
+    const std::string& get_name() const { return name; }
+    // геттеры
 };

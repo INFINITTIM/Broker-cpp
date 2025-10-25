@@ -9,17 +9,18 @@
 class EventHandlerInterface {
 private:
     std::unordered_map<BaseEvent::EventType, std::function<void(EventPtr)>> _handlers;
-    // у нас есть мапа которая содержит тип события и функцию как на неё реагиоровать
+    // у нас есть мапа которая содержит тип события и функцию как на неё реагировать
 
 public:
     virtual ~EventHandlerInterface() = default;
+    // деструктор хэндлера
 
     template<typename EventClass, typename Handler>
-    void subscribe(Handler&& handler) {
-        BaseEvent::EventType event_type = EventClass{}.type();
-        _handlers[event_type] = [handler = std::forward<Handler>(handler)](EventPtr event) {
-            if (auto casted_event = std::dynamic_pointer_cast<EventClass>(event)) {
-                handler(casted_event);
+    void subscribe(Handler handler) {
+        BaseEvent::EventType event_type = EventClass{}.get_event_type();
+        _handlers[event_type] = [handler](EventPtr event) {
+            if (auto casted = std::dynamic_pointer_cast<EventClass>(event)) {
+                handler(casted);
             }
         };
     }
@@ -32,17 +33,20 @@ public:
     void unsubscribe(BaseEvent::EventType event_type) {
         _handlers.erase(event_type);
     }
+    // отписываемся от события (убираем его из мапы)
 
     bool process_event(const EventPtr& event) {
-        auto it = _handlers.find(event->type());
+        auto it = _handlers.find(event->get_event_type());
         if (it != _handlers.end()) {
             it->second(event);
             return true;
         }
         return false;
     }
+    //мы берём событие если оно нашлось в мапе по типу его то тогда 
 
     void clear_subscriptions() {
         _handlers.clear();
     }
+    // отписываемся от всех событий
 };

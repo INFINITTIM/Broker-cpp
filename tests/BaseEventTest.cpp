@@ -1,88 +1,77 @@
 #include <gtest/gtest.h>
 #include <memory>
+#include <string>
 #include "../include/BaseEvent.hpp"
 
-class TestMessageEvent : public BaseEvent {
-private:
-    std::string text;
+class TestEvent1 : public BaseEvent {
 public:
-    TestMessageEvent(const std::string& _text) : text(_text) {}
-    
-    BaseEvent::EventType type() const override { 
-        return 1;
-    }
-    
-    std::string to_string() const override { 
-        return "TestMessageEvent: " + text; 
-    }
-    
-    const std::string& get_text() const { return text; }
+    TestEvent1() : BaseEvent(1001) {}
+    std::string to_string() const override { return "TestEvent1"; }
 };
 
-class TestErrorEvent : public BaseEvent {
-private:
-    std::string message;
-    int code;
+class TestEvent2 : public BaseEvent {
 public:
-    TestErrorEvent(const std::string& message, int _code = 0) 
-        : message(message), code(_code) {}
-    
-    BaseEvent::EventType type() const override { 
-        return 2;
-    }
-    
-    std::string to_string() const override { 
-        return "TestErrorEvent: " + message + " (code: " + std::to_string(code) + ")"; 
-    }
-    
-    const std::string& get_message() const { return message; }
-    int get_code() const { return code; }
+    TestEvent2() : BaseEvent(1002) {}
+    std::string to_string() const override { return "TestEvent2"; }
 };
 
-TEST(BaseEventTest, ReturnCorrectTypeNumbers) {
-    auto message = std::make_shared<TestMessageEvent>("Hello");
-    auto error = std::make_shared<TestErrorEvent>("Error", 500);
+class TestEventWithString : public BaseEvent {
+private:
+    std::string str;
+public:
+    TestEventWithString(const std::string& _str) : BaseEvent(1003), str(_str) {}
+    std::string to_string() const override { return "TestEventWithString: " + str; }
+};
 
-    EXPECT_EQ(message->type(), 1);
-    EXPECT_EQ(error->type(), 2); 
+TEST(BaseEventTest, EventHasUniqueType) {
+    TestEvent1 event1;
+    TestEvent2 event2;
+    
+    EXPECT_NE(event1.get_event_type(), event2.get_event_type());
 }
 
-TEST(BaseEventTest, HaveCorrectStringRepresentation) {
-    auto message = std::make_shared<TestMessageEvent>("Test Message");
-    auto error = std::make_shared<TestErrorEvent>("File Not Found", 404);
+TEST(BaseEventTest, EventTypeIsConsistent) {
+    TestEvent1 event1;
+    TestEvent1 event2;
     
-    EXPECT_EQ(message->to_string(), "TestMessageEvent: Test Message");
-    EXPECT_EQ(error->to_string(), "TestErrorEvent: File Not Found (code: 404)");
+    EXPECT_EQ(event1.get_event_type(), event2.get_event_type());
 }
 
-TEST(BaseEventTest, WorkWithPolymorphism) {
-    BaseEvent* event1 = new TestMessageEvent("Poly Test");
-    BaseEvent* event2 = new TestErrorEvent("Poly Error", 300);
+TEST(BaseEventTest, ToStringMethodWorks) {
+    TestEvent1 event1;
+    TestEventWithString event2("Hello World");
     
-    EXPECT_EQ(event1->type(), 1);
-    EXPECT_EQ(event2->type(), 2);
-    
-    delete event1;
-    delete event2;
+    EXPECT_EQ(event1.to_string(), "TestEvent1");
+    EXPECT_EQ(event2.to_string(), "TestEventWithString: Hello World");
 }
 
-TEST(BaseEventTest, WorkWithEventPtr) {
-    EventPtr message = std::make_shared<TestMessageEvent>("Shared");
-    EventPtr error = std::make_shared<TestErrorEvent>("Shared Error", 200);
-    
-    EXPECT_EQ(message->type(), 1);
-    EXPECT_EQ(error->type(), 2);
+TEST(BaseEventTest, EventPtrUse) {
+    EventPtr event1 = std::make_shared<TestEvent1>();
+    EventPtr event2 = std::make_shared<TestEvent2>();
+    EventPtr event3 = std::make_shared<TestEvent1>();
+
+    EXPECT_EQ(event1->get_event_type(), event3->get_event_type());
+    EXPECT_NE(event1->get_event_type(), event2->get_event_type());
+    EXPECT_EQ(event1->to_string(), "TestEvent1");
+    EXPECT_EQ(event2->to_string(), "TestEvent2");
+    EXPECT_EQ(event3->to_string(), "TestEvent1");
 }
 
-TEST(BaseEventTest, CastCorrectly) {
-    EventPtr event = std::make_shared<TestMessageEvent>("Cast Test");
+TEST(BaseEventTest, MultipleType) {
+    TestEvent1 event1, event2, event3;
     
-    auto message = std::dynamic_pointer_cast<TestMessageEvent>(event);
-    EXPECT_NE(message, nullptr);
-    EXPECT_EQ(message->get_text(), "Cast Test");
+    EXPECT_EQ(event1.get_event_type(), event2.get_event_type());  
+    EXPECT_EQ(event2.get_event_type(), event3.get_event_type()); 
+    EXPECT_EQ(event1.get_event_type(), event3.get_event_type());
+}
+
+TEST(BaseEventTest, EventWithConstructorParameters) {
+    TestEventWithString event1("First");
+    TestEventWithString event2("Second");
     
-    auto error = std::dynamic_pointer_cast<TestErrorEvent>(event);
-    EXPECT_EQ(error, nullptr);
+    EXPECT_EQ(event1.get_event_type(), event2.get_event_type());
+    EXPECT_EQ(event1.to_string(), "TestEventWithString: First");
+    EXPECT_EQ(event2.to_string(), "TestEventWithString: Second");
 }
 
 int main(int argc, char **argv) {
