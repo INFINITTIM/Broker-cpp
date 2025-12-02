@@ -9,11 +9,9 @@
 class EventHandlerInterface {
 private:
     std::unordered_map<BaseEvent::EventType, std::function<void(EventPtr)>> _handlers;
-    // у нас есть мапа которая содержит тип события и функцию как на неё реагировать
 
 public:
     virtual ~EventHandlerInterface() = default;
-    // деструктор хэндлера
 
     template<typename EventClass, typename Handler>
     void subscribe(Handler handler) {

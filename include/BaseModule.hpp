@@ -1,37 +1,66 @@
 #pragma once
 
-#include <cstddef>
 #include <string>
 #include <memory>
 #include <iostream>
 
-#include "BaseEvent.hpp"      
-#include "EventHandlerInterface.hpp" 
+#include "BaseEvent.hpp"
+#include "EventHandlerInterface.hpp"
+#include "BaseConnector.hpp"
+
+class BaseManager;
 
 class BaseModule : public EventHandlerInterface {
 protected:
     size_t id;
     std::string name;
-    // идентификатор модуля и название модуля
+    BaseConnector* _connector = nullptr;
+    BaseManager* _manager = nullptr;
 
 public:
-    BaseModule(size_t _id, std::string _name) : id(_id), name(_name) {}
-    // конструктор по умолчанию
+    BaseModule(size_t _id, const std::string& _name)
+        : id(_id), name(_name) {}
 
     virtual ~BaseModule() = default;
-    // деструктор
 
     virtual void init_subscribes() = 0;
-    // реализация подписок изначальных (можно изначально ни на кого не быть подписанным)
+
+    void set_connector(BaseConnector* conn) {
+        _connector = conn;
+    }
+
+    void set_manager(BaseManager* mgr) {
+        _manager = mgr;
+    }
 
     bool send(const EventPtr& event) {
-        std::cout << "[" << name << "] Отправляю событие: " 
-        << event->to_string() << std::endl;
-        return true;
+        if (_connector != nullptr) {
+            return _connector->send_to_manager(event);
+        } else {
+            std::cout << "[" << name << "] Отправляю: "
+                      << event->to_string() << std::endl;
+            return true;
+        }
     }
-    // отправляет сообщение (менеджеру когда он будет реализован)
+
+    void process_incoming_events() {
+        if (_connector) {
+            EventPtr event;
+            while ((event = _connector->recv_from_manager()) != nullptr) {
+                process_event(event);
+            }
+        }
+    }
+
+    template<typename EventClass, typename Handler>
+    void subscribe(Handler handler) {
+        EventHandlerInterface::subscribe<EventClass>(handler);
+
+        if (_manager && _connector) {
+            _manager->subscribe_module(_connector, EventClass{}.get_event_type());
+        }
+    }
 
     size_t get_id() const { return id; }
     const std::string& get_name() const { return name; }
-    // геттеры
 };
