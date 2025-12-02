@@ -102,9 +102,6 @@ public:
 };
 
 int main() {
-    std::cout << "=== БИБЛИОТЕКА СОБЫТИЙ ===" << std::endl;
-    std::cout << "Пользователь сам создает enum'ы для типов событий\n" << std::endl;
-    
     ChatModule chat;
     GameModule game;
     
