@@ -1,22 +1,18 @@
 #include <iostream>
 #include <memory>
-#include <vector>
+#include <chrono>
+#include <thread>
 
+#include "../include/Thread.hpp"
 #include "../include/BaseEvent.hpp"
+#include "../include/BaseManager.hpp"
 #include "../include/BaseModule.hpp"
 
+// ============================================
+// 1. ТИПЫ И КЛАССЫ СОБЫТИЙ
+// ============================================
 enum class ChatEventType : uint32_t {
-    MESSAGE_SENT = 1001,
-    USER_JOINED = 1002,
-    USER_LEFT = 1003,
-    PRIVATE_MESSAGE = 1004
-};
-
-enum class GameEventType : uint32_t {
-    PLAYER_MOVE = 2001,
-    PLAYER_ATTACK = 2002,
-    ITEM_PICKED = 2003,
-    LEVEL_COMPLETE = 2004
+    MESSAGE = 1001
 };
 
 class ChatMessageEvent : public BaseEvent {
@@ -25,97 +21,113 @@ private:
     std::string message;
     
 public:
-
     ChatMessageEvent() 
-        : BaseEvent(static_cast<EventType>(ChatEventType::MESSAGE_SENT)),
+        : BaseEvent(static_cast<EventType>(ChatEventType::MESSAGE)),
           username(""), message("") {}
 
     ChatMessageEvent(const std::string& user, const std::string& msg)
-        : BaseEvent(static_cast<EventType>(ChatEventType::MESSAGE_SENT)),
+        : BaseEvent(static_cast<EventType>(ChatEventType::MESSAGE)),
           username(user), message(msg) {}
     
     std::string to_string() const override {
-        return "ChatMessage: " + username + " -> " + message;
+        return username + ": " + message;
     }
     
     std::string get_username() const { return username; }
     std::string get_message() const { return message; }
 };
 
-class PlayerMoveEvent : public BaseEvent {
-private:
-    std::string player_id;
-    float x, y;
-    
-public:
-    PlayerMoveEvent() 
-        : BaseEvent(static_cast<EventType>(GameEventType::PLAYER_MOVE)),
-          player_id(""), x(0), y(0) {}
-
-    PlayerMoveEvent(const std::string& id, float x_pos, float y_pos)
-        : BaseEvent(static_cast<EventType>(GameEventType::PLAYER_MOVE)),
-          player_id(id), x(x_pos), y(y_pos) {}
-    
-    std::string to_string() const override {
-        return "PlayerMove: " + player_id + " to (" + 
-               std::to_string(x) + ", " + std::to_string(y) + ")";
-    }
-    
-    std::string get_player_id() const { return player_id; }
-    float get_x() const { return x; }
-    float get_y() const { return y; }
-};
-
 class ChatModule : public BaseModule {
+private:
+    int received_count = 0;
+    
 public:
-    ChatModule() : BaseModule(1, "ChatModule") {}
+    ChatModule() : BaseModule(1, "МодульЧат") {}
     
     void init_subscribes() override {
-        subscribe<ChatMessageEvent>([](auto event) {
-            std::cout << "ЧАТ: Сообщение от " << event->get_username()
-                      << ": " << event->get_message() << std::endl;
+        subscribe<ChatMessageEvent>([this](auto event) {
+            std::cout << "[чат] Получено: " << event->to_string() << std::endl;
+            received_count++;
         });
     }
     
     void send_message(const std::string& user, const std::string& msg) {
         auto event = std::make_shared<ChatMessageEvent>(user, msg);
+        std::cout << "[чат] Отправляю: " << event->to_string() << std::endl;
         send(event);
     }
+    
+    int get_received_count() const { return received_count; }
 };
 
-class GameModule : public BaseModule {
+class LoggerModule : public BaseModule {
+private:
+    int logged_count = 0;
+    
 public:
-    GameModule() : BaseModule(2, "GameModule") {}
+    LoggerModule() : BaseModule(2, "МодульЛог") {}
     
     void init_subscribes() override {
-        subscribe<PlayerMoveEvent>([](auto event) {
-            std::cout << "ИГРА: Игрок " << event->get_player_id()
-                      << " переместился в (" << event->get_x()
-                      << ", " << event->get_y() << ")" << std::endl;
+        subscribe<ChatMessageEvent>([this](auto event) {
+            std::cout << "[лог] Записано в лог: " 
+                      << event->get_username() << " - " 
+                      << event->get_message() << std::endl;
+            logged_count++;
         });
     }
     
-    void player_moved(const std::string& id, float x, float y) {
-        auto event = std::make_shared<PlayerMoveEvent>(id, x, y);
-        send(event);
-    }
+    int get_logged_count() const { return logged_count; }
 };
 
 int main() {
+    std::cout << "[1] Создание менеджера (брокера)" << std::endl;
+    BaseManager manager;
+
+    std::cout << "[2] Создание модулей" << std::endl;
     ChatModule chat;
-    GameModule game;
+    LoggerModule logger;
+
+    std::cout << "[3] Регистрация модулей в менеджере" << std::endl;
+    auto chat_connector = manager.register_module(3);
+    auto logger_connector = manager.register_module(3);
     
+    chat.set_connector(chat_connector);
+    chat.set_manager(&manager);
+    
+    logger.set_connector(logger_connector);
+    logger.set_manager(&manager);
+
+    std::cout << "[4] Инициализация подпискок модулей" << std::endl;
     chat.init_subscribes();
-    game.init_subscribes();
+    logger.init_subscribes();
 
-    chat.send_message("Пользователь1", "Привет1");
-    game.player_moved("p1", 10.5f, 20.3f);
-
-    auto msg_event = std::make_shared<ChatMessageEvent>("Пользователь2", "Привет2");
-    chat.process_event(msg_event);
+    std::cout << "[5] Происходит запуск потоков" << std::endl;
+    Thread manager_thread;
+    Thread chat_thread;
+    Thread logger_thread;
     
-    auto move_event = std::make_shared<PlayerMoveEvent>("p2", 5.0f, 15.0f);
-    game.process_event(move_event);
+    manager_thread.start_manager(&manager);
+    chat_thread.start_module(&chat);
+    logger_thread.start_module(&logger);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    std::cout << std::endl << "окно отладки (смотрим на сообщения и принимаются ли они двумя классами - логгером и чатом)" << std::endl;
+
+    std::cout << std::endl << "Отправляется 5 сообщений" << std::endl;
+    
+    for (int i = 1; i <= 5; i++) {
+        chat.send_message("Пользователь" + std::to_string(i), 
+                         "Сообщение " + std::to_string(i));
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    std::cout << std::endl << "[6] Происходит остановка потоков" << std::endl;
+    chat_thread.stop();
+    logger_thread.stop();
+    manager_thread.stop();
     
     return 0;
 }
