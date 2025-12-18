@@ -8,9 +8,6 @@
 #include "../include/BaseManager.hpp"
 #include "../include/BaseModule.hpp"
 
-// ============================================
-// 1. ТИПЫ И КЛАССЫ СОБЫТИЙ
-// ============================================
 enum class ChatEventType : uint32_t {
     MESSAGE = 1001
 };
