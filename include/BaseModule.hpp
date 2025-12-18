@@ -1,61 +1,79 @@
 #pragma once
 
 #include <string>
+#include <memory>
 #include <iostream>
+
 #include "BaseEvent.hpp"
 #include "EventHandlerInterface.hpp"
-#include "Connector.hpp"
+#include "BaseConnector.hpp"
 
-class Module : public EventHandlerInterface {
+class BaseManager;
+
+class BaseModule : public EventHandlerInterface {
 protected:
-    size_t id;
-    std::string name;
-    Connector* connector = nullptr;
+    size_t id; // уникальный id модуля 
+    std::string name; // имя модуля
+    BaseConnector* _connector = nullptr; // коннектор (труба) к менеджеру
+    BaseManager* _manager = nullptr; // указатель на менеджера
 
 public:
-    Module(size_t _id, const std::string& _name)
+    // конструктор модуля (id и имя)
+    BaseModule(size_t _id, const std::string& _name)
         : id(_id), name(_name) {}
 
-    virtual ~Module() = default;
+    virtual ~BaseModule() = default;
 
-    virtual void setup() = 0;
+    virtual void init_subscribes() = 0;
 
-    void set_connector(Connector* conn) {
-        connector = conn;
+    //сеттер для коннектора
+    void set_connector(BaseConnector* conn) {
+        _connector = conn;
     }
 
-    bool send(EventPtr event) {
-        if (connector != nullptr) {
-            return connector->send_to_manager(event);
+    //сеттер для менеджера
+    void set_manager(BaseManager* mgr) {
+        _manager = mgr;
+    }
+
+    // отправка сообщения (если модуль подключен к брокеру то у него есть коннектор
+    // и тогда происходит отправка - как раз через его канал)
+    bool send(const EventPtr& event) {
+        if (_connector != nullptr) {
+            return _connector->send_to_manager(event);
         } else {
-            std::cout << "[" << name << "] Sending: "
+            // если нет коннектора то есть модуль не подключен к менеджеру то просто вывод на экран 
+            //(для проверки что все работает (не обязательно))
+            std::cout << "[" << name << "] Отправляю: "
                       << event->to_string() << std::endl;
             return true;
         }
     }
 
-    void process_messages() {
-        if (connector) {
+    // получение сообщений (пока есть события в очереди коннектора то обрабатываем их)
+    void process_incoming_events() {
+        if (_connector) {
             EventPtr event;
-            while ((event = connector->recv_from_manager()) != nullptr) {
+            while ((event = _connector->recv_from_manager()) != nullptr) {
                 process_event(event);
             }
         }
     }
 
-    // ВАЖНО: сохраняем ваш интерфейс подписки!
+    // подписка модуля на события 
     template<typename EventClass, typename Handler>
     void subscribe(Handler handler) {
-        BaseEvent::EventType event_type = EventClass{}.get_event_type();
-        
-        EventHandlerInterface::subscribe(event_type, [handler](EventPtr event) {
-            if (auto casted = std::dynamic_pointer_cast<EventClass>(event)) {
-                handler(casted);
-            }
-        });
+        // регистрируем обработчик 
+        EventHandlerInterface::subscribe<EventClass>(handler);
+
+        // если есть менеджер то есть модуль подключен к брокеру то тогда регистрируем
+        // подписку на событие в менеджере чтобы он знал о нём
+        if (_manager && _connector) {
+            _manager->subscribe_module(_connector, EventClass{}.get_event_type());
+        }
     }
 
+    // геттеры для id и имени
     size_t get_id() const { return id; }
     const std::string& get_name() const { return name; }
 };
-
